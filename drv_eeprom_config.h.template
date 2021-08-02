@@ -1,0 +1,13 @@
+/*
+ * drv_eeprom_config.h
+ *
+ *  Created on: Feb 14, 2022
+ *      Author: ioadel
+ */
+
+#ifndef DRIVERS_DRV_EEPROM_DRV_EEPROM_CONFIG_H_TEMPLATE_
+#define DRIVERS_DRV_EEPROM_DRV_EEPROM_CONFIG_H_TEMPLATE_
+
+//# DRV_EEPROM_USE_INTERRUPT_MODE
+
+#endif /* DRIVERS_DRV_EEPROM_DRV_EEPROM_CONFIG_H_TEMPLATE_ */
