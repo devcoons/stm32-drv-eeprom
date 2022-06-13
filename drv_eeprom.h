@@ -5,7 +5,7 @@
 	---------------------------------------------------------------------------
 
 	MIT License
-	Copyright (c) 2021 F.C
+	Copyright (c) 2021 Io.D, Fed.C, Dan.R
 
 	Permission is hereby granted, free of charge, to any person obtaining a copy
 	of this software and associated documentation files (the "Software"), to deal
@@ -111,9 +111,10 @@ typedef struct
 	uint8_t init_sts;
 	volatile uint8_t is_busy;
 	volatile uint8_t has_error;
-	uint8_t dev_addr;		// Address of the eeprom
+	uint8_t  mem_addr_sz;
+	uint16_t dev_addr;		// Address of the eeprom
 	uint16_t pg_sz;
-	uint16_t mem_sz;
+	uint32_t mem_sz;
 	I2C_HandleTypeDef * handler;
 	void(*mx_init)();
 }eeprom_t;
@@ -125,8 +126,8 @@ typedef struct
 i_status eeprom_initialize(eeprom_t* instance);
 i_status eeprom_deinitialize(eeprom_t* instance);
 
-i_status eeprom_read(eeprom_t* instance, uint16_t address, uint8_t * buffer, uint16_t size);
-i_status eeprom_write(eeprom_t* instance, uint16_t address, uint8_t * buffer, uint16_t size);
+i_status eeprom_read(eeprom_t* instance, uint16_t address, uint8_t * buffer, uint32_t size);
+i_status eeprom_write(eeprom_t* instance, uint16_t address, uint8_t * buffer, uint32_t size);
 i_status eeprom_erase(eeprom_t* instance);
 
 i_status eeprom_available(eeprom_t* instance);

@@ -1,0 +1,154 @@
+/*
+	MIT License
+	Copyright (c) 2022 Energica Motor Company
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy
+	of this software and associated documentation files (the "Software"), to deal
+	in the Software without restriction, including without limitation the rights
+	to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+	copies of the Software, and to permit persons to whom the Software is
+	furnished to do so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in all
+	copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+	SOFTWARE.
+*/
+/******************************************************************************
+* Preprocessor Definitions & Macros
+******************************************************************************/
+
+/******************************************************************************
+* Includes
+******************************************************************************/
+#include "test.h"
+#include "drv_eeprom.h"
+/******************************************************************************
+* Enumerations, structures & Variables
+******************************************************************************/
+/*
+ * This unit test is made for the X-NUCLEO-EEPRAM2
+ * U1,U2 and U3 are the EEPROMs tested
+ */
+eeprom_t eeprom_u1 = {
+
+		.mx_init = MX_I2C1_Init,
+		.handler = &hi2c1,
+		.pg_sz = 16,
+		.dev_addr = 0xA8,
+		.mem_sz = 256, //256
+		.mem_addr_sz = 1
+};
+
+eeprom_t eeprom_u2 = {
+
+		.mx_init = MX_I2C1_Init,
+		.handler = &hi2c1,
+		.pg_sz = 64,
+		.dev_addr = 0xAA,
+		.mem_sz = 32768, //32K
+		.mem_addr_sz = 2
+};
+
+/*   We can use only the first half of this eeprom, if you want to use the second half,
+ *   please create a new instance and change the dev address from 0xAC to 0xAE
+ */
+
+eeprom_t eeprom_u3 = {
+
+		.mx_init = MX_I2C1_Init,
+		.handler = &hi2c1,
+		.pg_sz = 256,
+		.dev_addr = 0xAC,
+		.mem_sz = 131072 / 2,       
+		.mem_addr_sz = 2 
+};
+
+/* Possible new instance
+eeprom_t eeprom_u3_1 = {
+
+		.mx_init = MX_I2C1_Init,
+		.handler = &hi2c1,
+		.pg_sz = 256,
+		.dev_addr = 0xAE,
+		.mem_sz = 131072/2,
+		.mem_addr_sz = 2
+};
+*/
+/******************************************************************************
+* Declaration | Static Functions
+******************************************************************************/
+
+/******************************************************************************
+* Definition  | Static Functions
+******************************************************************************/
+
+/******************************************************************************
+ * Definition  | Public Functions
+ ******************************************************************************/
+ i_status test_eeprom_instance(eeprom_t* h)
+ {
+ uint32_t* data_tx, *data_rx;
+
+ data_tx = (uint32_t*)malloc(h->mem_sz);
+ data_rx = (uint32_t*)malloc(h->mem_sz);
+
+ for(int i=0;i<h->mem_sz/4;i++)
+ {
+	 data_tx[i] = rand();
+ }
+
+ if(eeprom_initialize(h)!= I_OK)
+	 return I_DEBUG_01;
+
+ if(eeprom_erase(h)!= I_OK)
+	 return I_DEBUG_02;
+
+ if(eeprom_read(h, 0,  (uint8_t*)data_rx, h->mem_sz)!= I_OK)
+	 return I_DEBUG_03;
+
+ if(eeprom_write(h, 0, (uint8_t*)data_tx, h->mem_sz)!= I_OK)
+	 return I_DEBUG_04;
+
+ if(eeprom_read(h, 0,  (uint8_t*)data_rx, h->mem_sz)!= I_OK)
+	 return I_DEBUG_05;
+
+ if(memcmp(data_tx,data_rx, h->mem_sz) != 0)
+	 return I_DEBUG_06;
+
+ if(eeprom_erase(h)!= I_OK)
+	 return I_DEBUG_07;
+
+ if(eeprom_read(h, 0,  (uint8_t*)data_rx, h->mem_sz)!= I_OK)
+	 return I_DEBUG_08;
+
+ memset(data_tx,0,h->mem_sz);
+
+ if(memcmp(data_tx,data_rx, h->mem_sz) != 0)
+	 return I_DEBUG_09;
+
+ free(data_tx);
+ free(data_rx);
+
+ return I_OK;
+ }
+
+i_status tresult;
+
+void drv_eeprom_utest()
+{
+
+tresult =  test_eeprom_instance(&eeprom_u1);
+tresult =  test_eeprom_instance(&eeprom_u2);
+tresult =  test_eeprom_instance(&eeprom_u3);
+
+}
+/******************************************************************************
+ * EOF - NO CODE AFTER THIS LINE
+******************************************************************************/

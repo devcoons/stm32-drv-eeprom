@@ -4,7 +4,7 @@
 	@t.odo	-
 	---------------------------------------------------------------------------
 	MIT License
-	Copyright (c) 2020 F.C.
+	Copyright (c) 2020 Io.D, Fed.C, Dan.R
 	Permission is hereby granted, free of charge, to any person obtaining a copy
 	of this software and associated documentation files (the "Software"), to deal
 	in the Software without restriction, including without limitation the rights
@@ -51,7 +51,8 @@ static uint8_t i2c_data[512];
 /******************************************************************************
  * Definition  | Public Functions
  ******************************************************************************/
-
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
 i_status eeprom_initialize(eeprom_t* instance)
 {
 	if(instance == NULL)
@@ -63,9 +64,13 @@ i_status eeprom_initialize(eeprom_t* instance)
 	instance->is_busy = 0;
 	instance->has_error = 0;
 
+	if(!(instance->mem_addr_sz == 1 || instance->mem_addr_sz == 2))
+		instance->mem_addr_sz = 2;
+	
 	for(register int i=0;i<eeprom_interfaces_cnt;i++)
 		if(eeprom_interfaces[i] == instance)
 			return I_OK;
+
 	eeprom_interfaces[eeprom_interfaces_cnt] = instance;
 	eeprom_interfaces_cnt++;
 	return I_OK;
@@ -83,7 +88,7 @@ i_status eeprom_deinitialize(eeprom_t* instance)
 	return temp == HAL_OK ? I_OK : I_ERROR;
 }
 
-i_status eeprom_read(eeprom_t* instance, uint16_t address, uint8_t * buffer, uint16_t size)
+i_status eeprom_read(eeprom_t* instance, uint16_t address, uint8_t * buffer, uint32_t size)
 {
 	if(instance == NULL)
 		return I_ERROR;
@@ -100,25 +105,19 @@ i_status eeprom_read(eeprom_t* instance, uint16_t address, uint8_t * buffer, uin
 	instance->is_busy = 1;
 	instance->has_error = 0;
 
-#ifdef HAL_IWDG_MODULE_ENABLED
-	HAL_IWDG_Refresh(&hiwdg);
-#endif
 #ifdef DRV_EEPROM_USE_INTERRUPT_MODE
-	HAL_StatusTypeDef temp =   HAL_I2C_Mem_Read_IT(instance->handler, instance->dev_addr, address, 2, buffer, size);
+	HAL_StatusTypeDef temp =   HAL_I2C_Mem_Read_IT(instance->handler, instance->dev_addr, address, instance->mem_addr_sz, buffer, size);
 #else
 
 	HAL_StatusTypeDef temp = HAL_ERROR;
 
-	if(HAL_I2C_IsDeviceReady(instance->handler,instance->dev_addr,0xFF,1) != HAL_OK)
-		return I_ERROR;
-
 	if(instance->pg_sz == 0)
 	{
-		temp =  HAL_I2C_Mem_Read(instance->handler, instance->dev_addr, address, 2, buffer, size, 25);
+		temp =  HAL_I2C_Mem_Read(instance->handler, instance->dev_addr, address, instance->mem_addr_sz, buffer, size, 256);
 	}
 	else
 	{
-		uint16_t b_sz = size;
+		uint32_t b_sz = size;
 		int b_pos = 0;
 		int b_i_sz = 0;
 
@@ -130,8 +129,10 @@ i_status eeprom_read(eeprom_t* instance, uint16_t address, uint8_t * buffer, uin
 
 			} while ((address + b_pos + b_i_sz) % (instance ->pg_sz) != 0 && (b_i_sz + b_pos) < b_sz);
 
-			HAL_I2C_Mem_Read(instance->handler, instance->dev_addr, address+b_pos, 2,&buffer[b_pos], b_i_sz, 100);
+			if(HAL_I2C_IsDeviceReady(instance->handler,instance->dev_addr,0xFF,10) != HAL_OK)
+				return I_ERROR;
 
+			temp = HAL_I2C_Mem_Read(instance->handler, instance->dev_addr, address+b_pos, instance->mem_addr_sz, &buffer[b_pos], b_i_sz, 256);
 			b_pos += b_i_sz;
 			b_i_sz = 0;
 		}
@@ -155,9 +156,7 @@ i_status eeprom_wait_sync(eeprom_t* instance,uint8_t timeout)
 
 	while(eeprom_available(instance)!= I_OK)
 	{
-#ifdef HAL_IWDG_MODULE_ENABLED
-		HAL_IWDG_Refresh(&hiwdg);
-#endif
+
 		HAL_Delay(1);
 		time--;
 		if(time == 0)
@@ -166,7 +165,7 @@ i_status eeprom_wait_sync(eeprom_t* instance,uint8_t timeout)
 	return I_OK;
 }
 
-i_status eeprom_write(eeprom_t* instance, uint16_t address, uint8_t * buffer, uint16_t size)
+i_status eeprom_write(eeprom_t* instance, uint16_t address, uint8_t * buffer, uint32_t size)
 {
 	if(instance == NULL)
 		return I_ERROR;
@@ -180,41 +179,47 @@ i_status eeprom_write(eeprom_t* instance, uint16_t address, uint8_t * buffer, ui
 	if(buffer == NULL || size == 0)
 		return I_INVALID;
 
-	if(HAL_I2C_IsDeviceReady(instance->handler,instance->dev_addr,0xFF,1) != HAL_OK)
+	if(HAL_I2C_IsDeviceReady(instance->handler,instance->dev_addr,0xFF,10) != HAL_OK)
 		return I_ERROR;
 
 	instance->is_busy = 1;
 	instance->has_error = 0;
-#ifdef HAL_IWDG_MODULE_ENABLED
-	HAL_IWDG_Refresh(&hiwdg);
-#endif
+
 #ifdef DRV_EEPROM_USE_INTERRUPT_MODE
-	HAL_StatusTypeDef temp =  HAL_I2C_Mem_Write_IT(instance->handler, instance->dev_addr, address, 2, buffer, size);
+	HAL_StatusTypeDef temp =  HAL_I2C_Mem_Write_IT(instance->handler, instance->dev_addr, address, instance->mem_addr_sz, buffer, size);
 #else
 	HAL_StatusTypeDef temp = HAL_ERROR;
 
-	if(HAL_I2C_IsDeviceReady(instance->handler,instance->dev_addr,0xFF,1) != HAL_OK)
-		return I_ERROR;
-
 	if(instance->pg_sz == 0)
 	{
-		temp =  HAL_I2C_Mem_Write(instance->handler, instance->dev_addr, address, 2, buffer, size, 25);
+		temp =  HAL_I2C_Mem_Write(instance->handler, instance->dev_addr, address, instance->mem_addr_sz, buffer, size, 25);
 	}
 	else
 	{
-		uint16_t b_sz = size;
+		uint32_t b_sz = size;
 		int b_pos = 0;
 		int b_i_sz = 0;
-
 		while (b_pos != b_sz)
 		{
 			do
 			{
 				b_i_sz++;
-
 			} while ((address + b_pos + b_i_sz) % (instance->pg_sz) != 0 && (b_i_sz + b_pos) < b_sz);
 
+
+			if(HAL_I2C_IsDeviceReady(instance->handler,instance->dev_addr,0xFF,1) != HAL_OK)
+				return I_ERROR;
+
 			temp = HAL_I2C_Mem_Write(instance->handler, instance->dev_addr, address+b_pos, 2,&buffer[b_pos], b_i_sz, 100);
+			if(temp != HAL_OK)
+			{
+				if(HAL_I2C_IsDeviceReady(instance->handler,instance->dev_addr,0xFF,1) != HAL_OK)
+					return I_ERROR;
+				temp = HAL_I2C_Mem_Write(instance->handler, instance->dev_addr, address+b_pos, 2,&buffer[b_pos], b_i_sz, 100);
+				if(temp != HAL_OK)
+					break;
+			}
+			
 			if(temp != HAL_OK)
 				break;
 			b_pos += b_i_sz;
@@ -233,15 +238,18 @@ i_status eeprom_erase(eeprom_t* instance)
 
 	if(instance == NULL)
 		return I_ERROR;
+
 	if(instance->init_sts == 0)
 		return I_ERROR;
-	while(instance->is_busy != 0)
-		__NOP();
-	while(HAL_I2C_IsDeviceReady(instance->handler,instance->dev_addr,0xFF,1) != HAL_OK)
-		__NOP();
 
-	uint16_t mem_address = 0;
-	uint16_t eraseable_sz = instance->pg_sz == 0 ? 8 : (instance->pg_sz <=512 ? instance->pg_sz : 8);
+	if(instance->is_busy != 0)
+		return I_ERROR;
+
+	if(HAL_I2C_IsDeviceReady(instance->handler,instance->dev_addr,0xFF,1) != HAL_OK)
+		return I_ERROR;
+
+	uint32_t mem_address = 0;
+	uint32_t eraseable_sz = instance->pg_sz == 0 ? 8 : (instance->pg_sz <=512 ? instance->pg_sz : 8);
 
 	while(mem_address != instance->mem_sz)
 	{
@@ -253,10 +261,6 @@ i_status eeprom_erase(eeprom_t* instance)
 		}
 		mem_address = mem_address + eraseable_sz;
 
-
-#ifdef HAL_IWDG_MODULE_ENABLED
-		HAL_IWDG_Refresh(&hiwdg);
-#endif
 #ifdef DRV_EEPROM_USE_INTERRUPT_MODE
 		uint32_t timeout = 15;
 		while(eeprom_available(instance)!= I_OK)
@@ -276,7 +280,7 @@ i_status eeprom_available(eeprom_t* instance)
 {
 	return instance->is_busy == 0 ? I_OK : I_INPROGRESS;
 }
-
+#pragma GCC pop_options
 /******************************************************************************
  * Definition  | Callback Functions
  ******************************************************************************/
